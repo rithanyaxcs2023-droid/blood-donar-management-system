@@ -9,6 +9,7 @@ const LiveAssistant: React.FC = () => {
   const [transcripts, setTranscripts] = useState<string[]>([]);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const sessionRef = useRef<any>(null);
   const inputAudioContextRef = useRef<AudioContext | null>(null);
@@ -50,7 +51,6 @@ const LiveAssistant: React.FC = () => {
     }
   };
 
-  // Helper methods for base64 encoding/decoding
   const encode = (bytes: Uint8Array) => {
     let binary = '';
     for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
@@ -82,9 +82,16 @@ const LiveAssistant: React.FC = () => {
       return;
     }
 
+    const apiKey = (window as any).process?.env?.API_KEY || process.env.API_KEY;
+    if (!apiKey) {
+      setError("Gemini API Key is missing. Please set the API_KEY environment variable.");
+      return;
+    }
+
     try {
+      setError(null);
       setIsConnecting(true);
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey });
       
       inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -95,7 +102,7 @@ const LiveAssistant: React.FC = () => {
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
-            console.log('Gemini Live Connected with Tool Support');
+            console.log('Gemini Live Connected');
             setIsActive(true);
             setIsConnecting(false);
             
@@ -115,14 +122,13 @@ const LiveAssistant: React.FC = () => {
 
               sessionPromise.then((session) => {
                 session.sendRealtimeInput({ media: pcmBlob });
-              });
+              }).catch(err => console.error("Send error:", err));
             };
             
             source.connect(scriptProcessor);
             scriptProcessor.connect(inputAudioContextRef.current!.destination);
           },
           onmessage: async (message: LiveServerMessage) => {
-            // Handle Tool Calls
             if (message.toolCall) {
               setIsProcessing(true);
               const session = await sessionPromise;
@@ -145,7 +151,7 @@ const LiveAssistant: React.FC = () => {
                     }, {});
                     result = counts;
                   } else if (fc.name === 'register_donor') {
-                    const { data, error } = await supabase.from('donors').insert([{
+                    const { error } = await supabase.from('donors').insert([{
                       name: fc.args.name,
                       blood_type: fc.args.bloodType,
                       contact: fc.args.contact,
@@ -169,14 +175,12 @@ const LiveAssistant: React.FC = () => {
               setIsProcessing(false);
             }
 
-            // Handle Transcripts
             if (message.serverContent?.outputTranscription) {
               setTranscripts(prev => [...prev.slice(-3), `AI: ${message.serverContent!.outputTranscription!.text}`]);
             } else if (message.serverContent?.inputTranscription) {
               setTranscripts(prev => [...prev.slice(-3), `You: ${message.serverContent!.inputTranscription!.text}`]);
             }
 
-            // Handle Audio Output
             const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
             if (base64Audio && outputAudioContextRef.current) {
               const ctx = outputAudioContextRef.current;
@@ -190,7 +194,12 @@ const LiveAssistant: React.FC = () => {
               sourcesRef.current.add(source);
             }
           },
-          onerror: (e) => console.error('Live Error:', e),
+          onerror: (e) => {
+            console.error('Live Error:', e);
+            setError("Connection error. Check your API key and network.");
+            setIsActive(false);
+            setIsConnecting(false);
+          },
           onclose: () => setIsActive(false),
         },
         config: {
@@ -206,6 +215,7 @@ const LiveAssistant: React.FC = () => {
       sessionRef.current = await sessionPromise;
     } catch (err) {
       console.error('Failed to start assistant:', err);
+      setError("Failed to initialize AI. Ensure your microphone is allowed.");
       setIsConnecting(false);
     }
   };
@@ -214,7 +224,7 @@ const LiveAssistant: React.FC = () => {
     if (sessionRef.current) sessionRef.current.close();
     inputAudioContextRef.current?.close();
     outputAudioContextRef.current?.close();
-    sourcesRef.current.forEach(s => s.stop());
+    sourcesRef.current.forEach(s => { try { s.stop(); } catch(e){} });
     sourcesRef.current.clear();
   };
 
@@ -229,6 +239,13 @@ const LiveAssistant: React.FC = () => {
           <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-50 text-red-600 px-3 py-1 rounded-full text-xs font-bold animate-pulse">
             <span className="w-2 h-2 bg-red-600 rounded-full"></span>
             Database Operation in Progress
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-sm font-bold flex items-center justify-center gap-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            {error}
           </div>
         )}
 
