@@ -9,7 +9,7 @@
     <style>
         body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
         #root:empty::after {
-            content: 'Initializing System...';
+            content: 'Initializing HemoFlow...';
             display: flex;
             align-items: center;
             justify-content: center;
@@ -22,8 +22,19 @@
         }
     </style>
     <script>
-        // Critical environment shim
+        // Critical: Prevent 'process is not defined' and ensure env is an object
         window.process = { env: {} };
+        
+        // Global error catcher for ESM loading issues
+        window.addEventListener('error', function(e) {
+            const root = document.getElementById('root');
+            if (root && root.innerHTML === '') {
+                root.innerHTML = '<div style="padding:40px; color:red; font-family:sans-serif;">' +
+                    '<h2>System Startup Error</h2>' +
+                    '<p>' + e.message + '</p>' +
+                    '<small>Check browser console for full trace.</small></div>';
+            }
+        });
     </script>
 <script type="importmap">
 {
