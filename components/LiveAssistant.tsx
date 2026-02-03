@@ -51,26 +51,43 @@ const LiveAssistant: React.FC = () => {
     }
   };
 
+  // Fix: Manual implementation of encode as per @google/genai guidelines
   const encode = (bytes: Uint8Array) => {
     let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
     return btoa(binary);
   };
 
+  // Fix: Manual implementation of decode as per @google/genai guidelines
   const decode = (base64: string) => {
     const binaryString = atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
     return bytes;
   };
 
-  const decodeAudioData = async (data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number) => {
+  // Fix: Implementation of decodeAudioData as per @google/genai guidelines
+  const decodeAudioData = async (
+    data: Uint8Array,
+    ctx: AudioContext,
+    sampleRate: number,
+    numChannels: number,
+  ): Promise<AudioBuffer> => {
     const dataInt16 = new Int16Array(data.buffer);
     const frameCount = dataInt16.length / numChannels;
     const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
     for (let channel = 0; channel < numChannels; channel++) {
       const channelData = buffer.getChannelData(channel);
-      for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+      for (let i = 0; i < frameCount; i++) {
+        channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+      }
     }
     return buffer;
   };
@@ -82,16 +99,11 @@ const LiveAssistant: React.FC = () => {
       return;
     }
 
-    const apiKey = (window as any).process?.env?.API_KEY || process.env.API_KEY;
-    if (!apiKey) {
-      setError("Gemini API Key is missing. Please set the API_KEY environment variable.");
-      return;
-    }
-
     try {
       setError(null);
       setIsConnecting(true);
-      const ai = new GoogleGenAI({ apiKey });
+      // Fix: Always use process.env.API_KEY directly as per @google/genai guidelines
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -120,6 +132,7 @@ const LiveAssistant: React.FC = () => {
                 mimeType: 'audio/pcm;rate=16000',
               };
 
+              // Fix: Initiate sendRealtimeInput only after session promise resolves as per guidelines
               sessionPromise.then((session) => {
                 session.sendRealtimeInput({ media: pcmBlob });
               }).catch(err => console.error("Send error:", err));
@@ -131,9 +144,6 @@ const LiveAssistant: React.FC = () => {
           onmessage: async (message: LiveServerMessage) => {
             if (message.toolCall) {
               setIsProcessing(true);
-              const session = await sessionPromise;
-              const functionResponses = [];
-
               for (const fc of message.toolCall.functionCalls) {
                 let result;
                 try {
@@ -164,14 +174,17 @@ const LiveAssistant: React.FC = () => {
                   result = { error: "Failed to execute database operation" };
                 }
 
-                functionResponses.push({
-                  id: fc.id,
-                  name: fc.name,
-                  response: { result }
+                // Fix: Properly formatted tool response as per @google/genai guidelines
+                sessionPromise.then((session) => {
+                  session.sendToolResponse({
+                    functionResponses: {
+                      id: fc.id,
+                      name: fc.name,
+                      response: { result: result },
+                    }
+                  });
                 });
               }
-
-              session.sendToolResponse({ functionResponses });
               setIsProcessing(false);
             }
 
@@ -184,6 +197,7 @@ const LiveAssistant: React.FC = () => {
             const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
             if (base64Audio && outputAudioContextRef.current) {
               const ctx = outputAudioContextRef.current;
+              // Fix: Track nextStartTime for continuous, gapless playback as per guidelines
               nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
               const audioBuffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
               const source = ctx.createBufferSource();
@@ -196,7 +210,7 @@ const LiveAssistant: React.FC = () => {
           },
           onerror: (e) => {
             console.error('Live Error:', e);
-            setError("Connection error. Check your API key and network.");
+            setError("Connection error. Please try again.");
             setIsActive(false);
             setIsConnecting(false);
           },

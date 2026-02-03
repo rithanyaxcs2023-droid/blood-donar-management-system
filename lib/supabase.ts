@@ -1,10 +1,15 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 const getEnvVar = (name: string): string | undefined => {
   if (typeof window !== 'undefined') {
-    // Check various common locations for injected env vars
-    return (window as any).process?.env?.[name] || (window as any).import?.meta?.env?.[name];
+    // Check various common locations for injected env vars (Vite, Process, Window)
+    return (
+      (import.meta.env && import.meta.env[name]) ||
+      (import.meta.env && import.meta.env[`VITE_${name}`]) ||
+      (window as any).process?.env?.[name] ||
+      (window as any).process?.env?.[`VITE_${name}`] ||
+      (window as any).import?.meta?.env?.[name]
+    );
   }
   return undefined;
 };
@@ -17,6 +22,10 @@ export const isSupabaseConfigured = Boolean(
   supabaseAnonKey && 
   supabaseUrl.startsWith('https://')
 );
+
+if (!isSupabaseConfigured) {
+  console.warn("HemoFlow: Supabase environment variables are missing. App will operate in read-only/placeholder mode.");
+}
 
 // Fallback to avoid crashing on initialization
 export const supabase = createClient(

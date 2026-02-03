@@ -14,6 +14,7 @@ const App: React.FC = () => {
   const [donors, setDonors] = useState<Donor[]>([]);
   const [activeEmergency, setActiveEmergency] = useState<Emergency | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -23,10 +24,12 @@ const App: React.FC = () => {
 
     const fetchData = async () => {
       try {
-        const { data: donorData } = await supabase
+        const { data: donorData, error } = await supabase
           .from('donors')
           .select('*')
           .order('created_at', { ascending: false });
+
+        if (error) throw error;
 
         if (donorData) {
           setDonors(donorData.map(d => ({
@@ -54,16 +57,19 @@ const App: React.FC = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'donors' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           const newD = payload.new;
-          setDonors(prev => [{
-            id: newD.id,
-            name: newD.name,
-            bloodType: newD.blood_type as BloodType,
-            lastDonationDate: newD.last_donation_date,
-            contact: newD.contact,
-            location: newD.location,
-            isAvailable: newD.is_available,
-            lastNotified: newD.last_notified
-          }, ...prev]);
+          setDonors(prev => {
+            if (prev.find(d => d.id === newD.id)) return prev;
+            return [{
+              id: newD.id,
+              name: newD.name,
+              bloodType: newD.blood_type as BloodType,
+              lastDonationDate: newD.last_donation_date,
+              contact: newD.contact,
+              location: newD.location,
+              isAvailable: newD.is_available,
+              lastNotified: newD.last_notified
+            }, ...prev];
+          });
         } else if (payload.eventType === 'UPDATE') {
           setDonors(prev => prev.map(d => d.id === payload.new.id ? {
             ...d,
@@ -84,6 +90,7 @@ const App: React.FC = () => {
       .channel('public:emergencies')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'emergencies' }, (payload) => {
         const em = payload.new;
+        // Fix: Changed 'units_needed' to 'unitsNeeded' to match Emergency interface
         setActiveEmergency({
           id: em.id,
           bloodType: em.blood_type as BloodType,
@@ -103,36 +110,72 @@ const App: React.FC = () => {
   }, []);
 
   const addDonor = async (newDonor: Omit<Donor, 'id'>) => {
-    await supabase.from('donors').insert([{
-      name: newDonor.name,
-      blood_type: newDonor.bloodType,
-      last_donation_date: newDonor.lastDonationDate,
-      contact: newDonor.contact,
-      location: newDonor.location,
-      is_available: newDonor.isAvailable
-    }]);
+    setIsSyncing(true);
+    try {
+      const { error } = await supabase.from('donors').insert([{
+        name: newDonor.name,
+        blood_type: newDonor.bloodType,
+        last_donation_date: newDonor.lastDonationDate,
+        contact: newDonor.contact,
+        location: newDonor.location,
+        is_available: newDonor.isAvailable
+      }]);
+      if (error) throw error;
+    } catch (err: any) {
+      console.error('Failed to add donor:', err);
+      alert(`Database Error: ${err.message || 'Check your Supabase URL and Anon Key'}`);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const updateDonor = async (id: string, updates: Partial<Donor>) => {
-    const supabaseUpdates: any = {};
-    if (updates.name !== undefined) supabaseUpdates.name = updates.name;
-    if (updates.bloodType !== undefined) supabaseUpdates.blood_type = updates.bloodType;
-    if (updates.contact !== undefined) supabaseUpdates.contact = updates.contact;
-    if (updates.location !== undefined) supabaseUpdates.location = updates.location;
-    if (updates.isAvailable !== undefined) supabaseUpdates.is_available = updates.isAvailable;
+    setIsSyncing(true);
+    try {
+      const supabaseUpdates: any = {};
+      if (updates.name !== undefined) supabaseUpdates.name = updates.name;
+      if (updates.bloodType !== undefined) supabaseUpdates.blood_type = updates.bloodType;
+      if (updates.contact !== undefined) supabaseUpdates.contact = updates.contact;
+      if (updates.location !== undefined) supabaseUpdates.location = updates.location;
+      if (updates.isAvailable !== undefined) supabaseUpdates.is_available = updates.isAvailable;
 
-    await supabase.from('donors').update(supabaseUpdates).eq('id', id);
+      const { error } = await supabase.from('donors').update(supabaseUpdates).eq('id', id);
+      if (error) throw error;
+    } catch (err: any) {
+      console.error('Failed to update donor:', err);
+      alert(`Database Error: ${err.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const deleteDonor = async (id: string) => {
-    await supabase.from('donors').delete().eq('id', id);
+    setIsSyncing(true);
+    try {
+      const { error } = await supabase.from('donors').delete().eq('id', id);
+      if (error) throw error;
+    } catch (err: any) {
+      console.error('Failed to delete donor:', err);
+      alert(`Database Error: ${err.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleNotifyDonor = async (id: string) => {
-    await supabase
-      .from('donors')
-      .update({ last_notified: new Date().toISOString() })
-      .eq('id', id);
+    setIsSyncing(true);
+    try {
+      const { error } = await supabase
+        .from('donors')
+        .update({ last_notified: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+    } catch (err: any) {
+      console.error('Failed to notify donor:', err);
+      alert(`Database Error: ${err.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   return (
@@ -148,6 +191,7 @@ const App: React.FC = () => {
                 <button onClick={() => setActiveEmergency(null)} className="text-white/80 hover:text-white">✕</button>
               </div>
               <h3 className="text-xl font-black">Emergency: {activeEmergency.bloodType} Required</h3>
+              {/* Fix: Replaced units_needed with unitsNeeded to match Emergency interface */}
               <p className="text-sm opacity-90">{activeEmergency.hospital} requires {activeEmergency.unitsNeeded} units immediately.</p>
               <button 
                 onClick={() => { setCurrentView('donors'); setActiveEmergency(null); }}
@@ -167,6 +211,12 @@ const App: React.FC = () => {
             <p className="text-slate-500 font-medium">Real-time repository management</p>
           </div>
           <div className="flex items-center gap-4">
+            {isSyncing && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase animate-pulse">
+                <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
+                Syncing...
+              </div>
+            )}
             <div className={`p-2 px-4 rounded-full shadow-sm border flex items-center gap-2 ${isSupabaseConfigured ? 'bg-white border-slate-200' : 'bg-red-50 border-red-100'}`}>
               <span className={`w-2 h-2 rounded-full ${isSupabaseConfigured ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
               <span className={`text-xs font-black uppercase tracking-widest ${isSupabaseConfigured ? 'text-slate-600' : 'text-red-600'}`}>
