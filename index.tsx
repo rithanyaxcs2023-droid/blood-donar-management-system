@@ -14,7 +14,7 @@ if (!container) {
         <App />
       </React.StrictMode>
     );
-    console.log("HemoFlow: Runtime Environment Standardized (React 18.3.1)");
+    console.log("HemoFlow: Interface Ready (Standardized React 18)");
   } catch (err) {
     console.error("Critical rendering error:", err);
     container.innerHTML = `
