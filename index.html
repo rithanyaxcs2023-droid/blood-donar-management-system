@@ -10,7 +10,7 @@
     <style>
         body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
         #root:empty::after {
-            content: 'Starting HemoFlow...';
+            content: 'Initializing HemoFlow System...';
             display: flex;
             align-items: center;
             justify-content: center;
@@ -23,18 +23,18 @@
         }
     </style>
     <script>
-        // Critical: Provide process.env shim for runtime libraries
+        // Critical: Provide process.env shim for ESM modules
         window.process = { env: { API_KEY: "" } };
         
-        // ESM load error capture
+        // Global error reporter for startup failures
         window.onerror = function(msg, url, line, col, error) {
             const root = document.getElementById('root');
             if (root && root.innerHTML === '') {
                 root.innerHTML = '<div style="padding:40px; color:#ef4444; font-family:sans-serif; max-width:600px; margin:auto;">' +
                     '<h2 style="font-weight:900; letter-spacing:-0.05em;">System Startup Error</h2>' +
-                    '<p style="background:#fee2e2; padding:15px; border-radius:12px; font-size:14px;">' + msg + '</p>' +
-                    '<p style="color:#64748b; font-size:12px;">This is usually caused by a version conflict in the browser import map.</p>' +
-                    '<button onclick="location.reload(true)" style="margin-top:15px; padding:12px 24px; background:#ef4444; color:white; border:none; border-radius:12px; cursor:pointer; font-weight:bold;">Force Refresh</button></div>';
+                    '<p style="background:#fee2e2; padding:15px; border-radius:12px; font-size:14px; color:#b91c1c;">' + msg + '</p>' +
+                    '<p style="color:#64748b; font-size:12px; margin-top:10px;">This error usually happens when browser cache holds conflicting library versions.</p>' +
+                    '<button onclick="location.reload(true)" style="margin-top:15px; padding:12px 24px; background:#ef4444; color:white; border:none; border-radius:12px; cursor:pointer; font-weight:bold; box-shadow:0 10px 15px -3px rgba(239,68,68,0.3);">Force System Refresh</button></div>';
             }
         };
     </script>
