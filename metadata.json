@@ -1,0 +1,8 @@
+{
+  "name": "HemoFlow: Blood Donor Management System",
+  "description": "A real-time blood donor management platform with voice-activated assistance, inventory tracking, and donor discovery using Gemini AI.",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation"
+  ]
+}
