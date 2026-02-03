@@ -2,20 +2,27 @@ import { createClient } from '@supabase/supabase-js';
 
 const getEnvVar = (name: string): string | undefined => {
   if (typeof window !== 'undefined') {
-    // Check various common locations for injected env vars (Vite, Process, Window)
-    return (
-      (import.meta.env && import.meta.env[name]) ||
-      (import.meta.env && import.meta.env[`VITE_${name}`]) ||
-      (window as any).process?.env?.[name] ||
-      (window as any).process?.env?.[`VITE_${name}`] ||
-      (window as any).import?.meta?.env?.[name]
-    );
+    const candidates = [
+      (import.meta.env && import.meta.env[name]),
+      (import.meta.env && import.meta.env[`VITE_${name}`]),
+      (import.meta.env && import.meta.env[`EXPO_PUBLIC_${name}`]),
+      (window as any).process?.env?.[name],
+      (window as any).process?.env?.[`VITE_${name}`],
+      (window as any).process?.env?.[`EXPO_PUBLIC_${name}`],
+      (window as any).import?.meta?.env?.[name],
+      (window as any).import?.meta?.env?.[`VITE_${name}`],
+      (window as any).import?.meta?.env?.[`EXPO_PUBLIC_${name}`]
+    ];
+    
+    // Find first non-empty string candidate
+    return candidates.find(c => typeof c === 'string' && c.length > 0);
   }
   return undefined;
 };
 
-const supabaseUrl = getEnvVar('SUPABASE_URL');
-const supabaseAnonKey = getEnvVar('SUPABASE_ANON_KEY');
+// Map URL and KEY specifically as they might have different names in different environments
+const supabaseUrl = getEnvVar('SUPABASE_URL') || getEnvVar('URL');
+const supabaseAnonKey = getEnvVar('SUPABASE_ANON_KEY') || getEnvVar('SUPABASE_KEY') || getEnvVar('KEY');
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl && 
@@ -24,7 +31,13 @@ export const isSupabaseConfigured = Boolean(
 );
 
 if (!isSupabaseConfigured) {
-  console.warn("HemoFlow: Supabase environment variables are missing. App will operate in read-only/placeholder mode.");
+  console.group("🏥 HemoFlow: Database Connection Status");
+  console.warn("Status: Offline (Missing Credentials)");
+  console.info("Detection Log:");
+  console.info("- SUPABASE_URL detected:", !!supabaseUrl);
+  console.info("- SUPABASE_ANON_KEY detected:", !!supabaseAnonKey);
+  console.info("Supported Prefixes: VITE_, EXPO_PUBLIC_, or direct names.");
+  console.groupEnd();
 }
 
 // Fallback to avoid crashing on initialization

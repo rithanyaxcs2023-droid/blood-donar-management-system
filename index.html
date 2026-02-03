@@ -21,17 +21,12 @@
             letter-spacing: -0.05em;
             background: #f8fafc;
         }
-        @keyframes pulse-red {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-        .animate-pulse-red {
-          animation: pulse-red 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
     </style>
     <script>
-        // Placeholder for injected environment variables
-        window.process = window.process || { env: { API_KEY: "" } };
+        // Ensure process.env is safely initialized without clearing existing keys
+        window.process = window.process || {};
+        window.process.env = window.process.env || {};
+        
         window.onerror = function(msg, url, line, col, error) {
             const root = document.getElementById('root');
             if (root && root.innerHTML === '') {

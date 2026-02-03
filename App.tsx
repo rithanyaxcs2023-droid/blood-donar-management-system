@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ViewState, Donor, BloodType, Emergency } from './types';
 import Dashboard from './components/Dashboard';
@@ -90,7 +89,6 @@ const App: React.FC = () => {
       .channel('public:emergencies')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'emergencies' }, (payload) => {
         const em = payload.new;
-        // Fix: Changed 'units_needed' to 'unitsNeeded' to match Emergency interface
         setActiveEmergency({
           id: em.id,
           bloodType: em.blood_type as BloodType,
@@ -123,7 +121,7 @@ const App: React.FC = () => {
       if (error) throw error;
     } catch (err: any) {
       console.error('Failed to add donor:', err);
-      alert(`Database Error: ${err.message || 'Check your Supabase URL and Anon Key'}`);
+      alert(`Database Error: ${err.message || 'Missing Credentials'}`);
     } finally {
       setIsSyncing(false);
     }
@@ -191,7 +189,6 @@ const App: React.FC = () => {
                 <button onClick={() => setActiveEmergency(null)} className="text-white/80 hover:text-white">✕</button>
               </div>
               <h3 className="text-xl font-black">Emergency: {activeEmergency.bloodType} Required</h3>
-              {/* Fix: Replaced units_needed with unitsNeeded to match Emergency interface */}
               <p className="text-sm opacity-90">{activeEmergency.hospital} requires {activeEmergency.unitsNeeded} units immediately.</p>
               <button 
                 onClick={() => { setCurrentView('donors'); setActiveEmergency(null); }}
@@ -210,19 +207,23 @@ const App: React.FC = () => {
             </h1>
             <p className="text-slate-500 font-medium">Real-time repository management</p>
           </div>
-          <div className="flex items-center gap-4">
-            {isSyncing && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase animate-pulse">
-                <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
-                Syncing...
-              </div>
-            )}
+          <div className="flex flex-col items-end">
             <div className={`p-2 px-4 rounded-full shadow-sm border flex items-center gap-2 ${isSupabaseConfigured ? 'bg-white border-slate-200' : 'bg-red-50 border-red-100'}`}>
               <span className={`w-2 h-2 rounded-full ${isSupabaseConfigured ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
               <span className={`text-xs font-black uppercase tracking-widest ${isSupabaseConfigured ? 'text-slate-600' : 'text-red-600'}`}>
-                {isSupabaseConfigured ? 'Live Network' : 'Offline'}
+                {isSupabaseConfigured ? 'Live Network' : 'Connection Error'}
               </span>
             </div>
+            {!isSupabaseConfigured && (
+              <p className="text-[10px] font-bold text-red-400 mt-1 uppercase tracking-tighter text-right">
+                Missing EXPO_PUBLIC_SUPABASE_URL<br/>or EXPO_PUBLIC_SUPABASE_KEY
+              </p>
+            )}
+            {isSyncing && (
+              <div className="mt-1 flex items-center gap-2 px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black uppercase animate-pulse">
+                Syncing changes...
+              </div>
+            )}
           </div>
         </header>
 
